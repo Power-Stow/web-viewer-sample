@@ -61,7 +61,7 @@ export default class StreamOnly extends React.Component<AppProps> {
             <div
                 style={{
                     position: 'absolute',
-                    top: headerHeight,
+                    top: 0,
                     left: 0,
                     right: 0,
                     bottom: 0,

@@ -13,6 +13,40 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { AppStreamer, StreamEvent, StreamProps, DirectConfig, GFNConfig, StreamType } from '@nvidia/omniverse-webrtc-streaming-library';
 import StreamConfig from '../stream.config.json';
+import './AppStream.css';
+
+const stream_server_override = import.meta.env.VITE_STREAM_SERVER as string | undefined;
+const stream_signaling_port_override = import.meta.env.VITE_STREAM_SIGNALING_PORT as string | undefined;
+const stream_media_port_override = import.meta.env.VITE_STREAM_MEDIA_PORT as string | undefined;
+
+const parse_port_override = (port_value: string | undefined): number | undefined => {
+    if (port_value == null || port_value.trim() === '') {
+        return undefined;
+    }
+
+    const parsed_value = Number.parseInt(port_value, 10);
+    if (Number.isNaN(parsed_value)) {
+        return undefined;
+    }
+
+    return parsed_value;
+}
+
+const resolve_local_stream_server = (): string => {
+    if (stream_server_override != null && stream_server_override.trim() !== '') {
+        return stream_server_override;
+    }
+
+    return StreamConfig.local.server;
+}
+
+const resolve_local_signaling_port = (): number => {
+    return parse_port_override(stream_signaling_port_override) ?? StreamConfig.local.signalingPort;
+}
+
+const resolve_local_media_port = (): number | undefined => {
+    return parse_port_override(stream_media_port_override) ?? StreamConfig.local.mediaPort;
+}
 
 
 interface AppStreamProps {
@@ -34,10 +68,13 @@ interface AppStreamProps {
 
 interface AppStreamState {
     streamReady: boolean;
+    isConnecting: boolean;
 }
 
 export default class AppStream extends Component<AppStreamProps, AppStreamState> {
     private _requested: boolean;
+    private _containerRef: React.RefObject<HTMLDivElement>;
+    private _resizeDebounceTimer: ReturnType<typeof setTimeout> | null;
 
     static defaultProps = {
         style: {}
@@ -53,12 +90,17 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
         super(props);
 
         this._requested = false;
+        this._containerRef = React.createRef<HTMLDivElement>();
+        this._resizeDebounceTimer = null;
         this.state = {
-            streamReady: false
+            streamReady: false,
+            isConnecting: true
         };
     }
 
     componentDidMount() {
+        window.addEventListener('resize', this._onWindowResize);
+
         if (!this._requested) {
             this._requested = true;
 
@@ -81,16 +123,20 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
             }
 
             else if (StreamConfig.source === 'local') {
+                const local_stream_server = resolve_local_stream_server();
+                const local_signaling_port = resolve_local_signaling_port();
+                const local_media_port = resolve_local_media_port();
+
                 streamSource = StreamType.DIRECT;
                 streamConfig = {
                     videoElementId: 'remote-video',
                     audioElementId: 'remote-audio',
                     authenticate: true,
                     maxReconnects: 20,
-                    signalingServer: StreamConfig.local.server,
-                    signalingPort: StreamConfig.local.signalingPort,
-                    mediaServer: StreamConfig.local.server,
-                    ...(StreamConfig.local.mediaPort != null && { mediaPort: StreamConfig.local.mediaPort }),
+                    signalingServer: local_stream_server,
+                    signalingPort: local_signaling_port,
+                    mediaServer: local_stream_server,
+                    ...(local_media_port != null && { mediaPort: local_media_port }),
                     nativeTouchEvents: true,
                     width: 1920,
                     height: 1080,
@@ -144,10 +190,12 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
                 })
                 .catch((error: StreamEvent) => {
                     console.error(error);
+                    this.setState({ isConnecting: false });
                 });
             }
             catch (error) {
                 console.error(error);
+                this.setState({ isConnecting: false });
             }
         }
     }
@@ -161,6 +209,16 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
                 player.muted = true;
                 player.play();
             }
+
+            this._scheduleResolutionSync();
+        }
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('resize', this._onWindowResize);
+        if (this._resizeDebounceTimer) {
+            clearTimeout(this._resizeDebounceTimer);
+            this._resizeDebounceTimer = null;
         }
     }
 
@@ -176,7 +234,7 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
     _onStart(message: any) {
         if (message.action === 'start' && message.status === 'success' && !this.state.streamReady) {
             console.info('streamReady');
-            this.setState({ streamReady: true });
+            this.setState({ streamReady: true, isConnecting: false });
             this.props.onStarted();
         }
 
@@ -184,6 +242,7 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
         {
             console.log(message.info);
             alert(message.info);
+            this.setState({ isConnecting: false });
             this.props.onStreamFailed();
             return;
         }
@@ -211,48 +270,135 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
         console.info('Stream terminated', message);
     }
 
+    _onWindowResize = () => {
+        if (!this.state.streamReady) {
+            return;
+        }
+        this._scheduleResolutionSync();
+    }
+
+    _scheduleResolutionSync = () => {
+        if (this._resizeDebounceTimer) {
+            clearTimeout(this._resizeDebounceTimer);
+        }
+
+        this._resizeDebounceTimer = setTimeout(() => {
+            this._sendResolutionSync();
+        }, 200);
+    }
+
+    _getResolutionFromContainer = (): { width: number; height: number } | null => {
+        const container = this._containerRef.current;
+        if (!container) {
+            return null;
+        }
+
+        const width = Math.max(2, Math.floor(container.clientWidth));
+        const height = Math.max(2, Math.floor(container.clientHeight));
+
+        return {
+            width: width % 2 === 0 ? width : width - 1,
+            height: height % 2 === 0 ? height : height - 1,
+        };
+    }
+
+    _sendResolutionSync = () => {
+        if (!this.state.streamReady || StreamConfig.source === 'gfn') {
+            return;
+        }
+
+        const targetResolution = this._getResolutionFromContainer();
+        if (!targetResolution) {
+            return;
+        }
+
+        const message = {
+            event_type: 'changeResolutionRequest',
+            payload: {
+                width: targetResolution.width,
+                height: targetResolution.height,
+            },
+        };
+
+        AppStream.sendMessage(JSON.stringify(message));
+    }
+
     render() {
         const source = StreamConfig.source;
 
         if (source === 'gfn') {
             return (
                 <div
-                    id="view"
+                    ref={this._containerRef}
                     style={{
-                        backgroundColor: this.state.streamReady ? 'white': '#dddddd',
-                        display: 'flex', justifyContent: 'space-between',
-                        height: "100%",
-                        width: "100%",
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%',
                         ...this.props.style
                     }}
-                />
+                >
+                    {this.state.isConnecting &&
+                        <div className="stream-loading-overlay">
+                            <div className="loading-indicator-label">
+                                Connecting to stream...
+                                <div className="spinner-border" role="status" style={{ marginTop: 10 }} />
+                            </div>
+                        </div>
+                    }
+                    <div
+                        id="view"
+                        style={{
+                            backgroundColor: '#242424',
+                            display: 'flex', justifyContent: 'space-between',
+                            height: "100%",
+                            width: "100%",
+                        }}
+                    />
+                </div>
             );
         } else if (source === 'local' || source === 'stream') {
             return (
                 <div
-                    key={'stream-canvas'}
-                    id={'main-div'}
+                    ref={this._containerRef}
                     style={{
-                        backgroundColor:this.state.streamReady ? 'white': '#dddddd',
-                        visibility: this.state.streamReady ? 'visible' : 'hidden',
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%',
                         ...this.props.style
                     }}
                 >
-                    <video
-                        key={'video-canvas'}
-                        id={'remote-video'}
+                    {this.state.isConnecting &&
+                        <div className="stream-loading-overlay">
+                            <div className="loading-indicator-label">
+                                Connecting to stream...
+                                <div className="spinner-border" role="status" style={{ marginTop: 10 }} />
+                            </div>
+                        </div>
+                    }
+                    <div
+                        key={'stream-canvas'}
+                        id={'main-div'}
                         style={{
-                            left: 0,
-                            top: 0,
-                            width: '100%',
-                            height: '100%',
+                            backgroundColor: '#242424',
+                            visibility: this.state.streamReady ? 'visible' : 'hidden',
                         }}
-                        tabIndex={-1}
-                        playsInline muted
-                        autoPlay
-                    />
-                    <audio id="remote-audio" muted></audio>
-                    <h3 style={{ visibility: 'hidden' }} id="message-display">...</h3>
+                    >
+                        <video
+                            key={'video-canvas'}
+                            id={'remote-video'}
+                            style={{
+                                left: 0,
+                                top: 0,
+                                width: '100%',
+                                height: '100%',
+                            }}
+                            tabIndex={-1}
+                            playsInline muted
+                            autoPlay
+                        />
+                        <audio id="remote-audio" muted></audio>
+                        <h3 style={{ visibility: 'hidden' }} id="message-display">...</h3>
+                    </div>
                 </div>
             );
         }

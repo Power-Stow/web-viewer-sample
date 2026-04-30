@@ -367,6 +367,11 @@ export default class App extends React.Component<AppProps, AppState> {
                 }
             }
         }
+
+        // response received from a changeResolutionRequest
+        else if (event.event_type === "changeResolutionConfirmation") {
+            console.info('Kit confirmed resolution change:', event.payload?.resolution ?? event.payload);
+        }
         
         // Loading progress amount notification.
         else if (event.event_type === "updateProgressAmount") {

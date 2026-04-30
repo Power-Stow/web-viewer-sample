@@ -76,8 +76,8 @@ class App extends Component<{}, AppState>{
     constructor(props: {}) {
         super(props);
         this.state = {
-            currentForm: Forms.AppOnly,
-            useWebUI: true,
+            currentForm: Forms.Stream,
+            useWebUI: false,
             streamServer: StreamConfig.stream.streamServer,
             appServer: StreamConfig.stream.appServer,
             applications: [],
@@ -105,8 +105,8 @@ class App extends Component<{}, AppState>{
     */
     private _resetState() {
         this.setState({
-            currentForm: Forms.AppOnly,
-            useWebUI: true,
+            currentForm: Forms.Stream,
+            useWebUI: false,
             streamServer: StreamConfig.stream.streamServer,
             appServer: StreamConfig.stream.appServer,
             applications: [],
@@ -260,10 +260,10 @@ class App extends Component<{}, AppState>{
             >
 
             {/* Header */}
-            <div className="header-bar">
+            {/* <div className="header-bar">
                 <img src={LogoImage} alt="Logo" className="header-logo" />
                     <span className="header-title">Omniverse Embedded Web Viewer Example</span>
-                </div>
+                </div> */}
 
             { /* End Stream button */}
             {StreamConfig.source === "stream" &&
