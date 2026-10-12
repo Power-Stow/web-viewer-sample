@@ -1,51 +1,54 @@
-# Omniverse Web Viewer Sample Application
+# Power Stow web viewer for Isaac Sim
 
-<p align="center">
-  <img src="readme-assets/sample.png" width=100% />
-</p>
+This branch replaces the previous `web-viewer-sample` fork with the browser viewer that NVIDIA uses for Isaac Sim
+6.1.0 (`tools/docker/web-viewer` in the [IsaacSim](https://github.com/isaac-sim/IsaacSim) repository): a React app
+generated from the Omniverse Web SDK template and streaming through `@nvidia/ov-web-rtc`.
 
-This sample is part of the larger [Omniverse Embedded Web Viewer Example](https://docs.omniverse.nvidia.com/web-viewer.html).
-The sample demonstrates how a front end client can present a streamed 
-Omniverse Kit application and how to send messages back and forth between 
-the two apps. This sample supports the following streaming deployments:
-- Local
-- [Omniverse Kit Application Streaming (OKAS)](https://docs.omniverse.nvidia.com/ovas/latest/index.html)
-- [GDN](https://www.nvidia.com/en-us/omniverse/solutions/stream-3d-apps/)
+It was generated with (Node 22, the `@nvidia` npm scope resolves through `.npmrc`):
 
-This application is designed to be used with the `USD Viewer Sample` in https://github.com/NVIDIA-Omniverse/kit-app-template.
+```bash
+npx @nvidia/create-ov-web-rtc-app@2.1.5 --name=web-viewer --sample=local-sample --external --outputDir=. sample-app --framework=react
+```
 
-The messages sent and handled by this sample expects the USD Viewer Sample. However, with some editing it can also be 
-used to stream any other Kit application. 
+Local changes on top of the generated app, all in `src/main.tsx` (plus `src/vite-env.d.ts` for the typings):
 
-This is a React application that has been built using the Vite 
-framework (https://github.com/vitejs).
+- The Kit host and the WebRTC signaling/media ports are read from `VITE_STREAM_SERVER`, `VITE_STREAM_SIGNALING_PORT`
+  and `VITE_STREAM_MEDIA_PORT` at runtime instead of being hard-coded. `isaac --web-streaming` in `auto_loader_sim`
+  sets them per Isaac Sim instance. Defaults are `127.0.0.1`, `49100` and `47998`, the Isaac Sim streaming defaults.
+- Browser shortcuts (F11 fullscreen, F5 / Ctrl+R reload, developer tools) stay in the browser instead of being forwarded
+  to Kit, the same handling NVIDIA applies in its Dockerfile.
+
+Requirements: Node.js 20 or newer (NVIDIA uses 22) and `npm install` once. Run the dev server with
+`npm run dev -- --host --port <port>`; `isaac --web-streaming` does this for you.
+
+To move to a newer template, regenerate with the command above and reapply the two changes.
+
+---
+
+# Omniverse Local Streaming Sample
+
+This sample demonstrates how a front end client can present a streamed Omniverse Kit application. This sample supports local streaming.
+
+This React application has been built using the Vite framework (https://github.com/vitejs) and is designed to stream an Omniverse Kit application created from [kit-app-template](https://github.com/NVIDIA-Omniverse/kit-app-template).
 
 
 ## Table of Contents
+
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
-    - [Stream Configuration](#stream-configuration)
-        - [Local](#local)
-        - [Omniverse Kit App Streaming](#omniverse-kit-app-streaming)
-        - [Graphics Delivery Network (GDN)](#graphics-delivery-network-gdn)
-    - [Client UI](#client-ui)
-    - [Interacting with the solution](#interacting-with-the-solution)
-- [Front End Client Development](#front-end-client-development)
-  - [Embed Viewer in an Existing Client](#embed-viewer-in-an-existing-client)
-  - [AppStreamer](#appstreamer)
-  - [Initialize the Stream](#initialize-the-stream)
-  - [Custom Messages with AppStreamer](#custom-messages-with-appstreamer)
-  - [Sample Message Loop](#sample-message-loop)
+- [Stream Configuration](#stream-configuration)
+- [Interacting with the solution](#interacting-with-the-solution)
 - [Updating Dependencies](#updating-dependencies)
 - [Troubleshooting](#troubleshooting)
+  - [General steps](#general-steps)
+  - [Refreshing the Client](#refreshing-the-client)
 - [License](#license)
-- [Contributing](#contributing)
 
 ## Prerequisites
 
 - Node.js installation (https://nodejs.org/en/download).
 - Chromium browser.
-- Use of `USD Viewer Template` based application created in [kit-app-template](https://github.com/NVIDIA-Omniverse/kit-app-template) using Kit 107.3.1 or more recent. Section [Client UI](#client-ui) describes how to use other applications.
+- Use of an Omniverse Kit application configured for streaming created in [kit-app-template](https://github.com/NVIDIA-Omniverse/kit-app-template).
 
 ## Quick Start
 
@@ -58,164 +61,92 @@ node -v
 npm -v
 ```
 
-2. Launch a streaming Kit application based on the [USD Viewer Template](https://github.com/NVIDIA-Omniverse/kit-app-template/tree/main/templates/apps/usd_viewer).
+2. Launch an Omniverse Kit application configured for streaming.
 
-3. Clone this repository using the appropriate branch for your Kit version:
-
-   **For Kit 1.6.1 and higher (until 107.3.1):**
-   ```bash
-   git clone -b 1.4.1 https://github.com/NVIDIA-Omniverse/web-viewer-sample.git
-   ```
-
-   **For Kit 107.3.1 and higher:**
-   ```bash
-   git clone -b 1.5.2 https://github.com/NVIDIA-Omniverse/web-viewer-sample.git
-   ```
-
-> [!Important]
-> Always use the specific versioned branch that matches your Kit version for compatibility. The `main` branch contains the latest development code but may not be compatible with your Kit version.
-
-
-4. Navigate into the project:
+3. Navigate into the project:
 
 ```bash
-cd web-viewer-sample
+cd web-viewer
 ```
 
-5. Install dependencies:
+4. Install dependencies:
 
 ```bash
 npm install
 ```
 
-> [!NOTE]
-> A new terminal is needed for `npm` commands if Node.js was recently installed.
-
-If you encounter the following `Unsupported engine` warning, it indicates that you do not have the correct Node.js or npm version installed for this application and your app may not work as expected. Refer to the [package.json's engine section](package.json#L10-11) for the minimum required versions.
-
-```bash
-npm warn EBADENGINE Unsupported engine {
-npm warn EBADENGINE   package: '@nvidia/web-viewer-sample@1.4.0',
-npm warn EBADENGINE   required: { node: '^18.0.0', npm: '^10.0.0' },
-npm warn EBADENGINE   current: { node: '17.0.0', npm: '10.9.2' }
-npm warn EBADENGINE }
-```
-
-6. Configure your stream settings. By default, this client is configured for local streaming. Please see [Stream Configuration](#stream-configuration) for Omniverse Kit App Streaming or GDN configuration.
-
-7. Run the client:
+5. Run the client:
 
 ```bash
 npm run dev
 ```
 
-8. Open a Chromium browser and navigate to [localhost:5173](localhost:5173).
- 
-At this point you should see options for configuring the client. Refer to the [Client UI](#client-ui) section for an overview of these options. 
+6. Open a Chromium browser and navigate to [localhost:5173](http://localhost:5173).
 
 > [!NOTE]
 > When running this application in a container, you can serve the optimized production files generated by `npm run build`, rather than starting the development server. After running `npm run build`, the static files will be located in the `dist` directory.
 
-### Stream Configuration
+## Production Mode
 
-This section describes the required settings in the [stream.config.json](stream.config.json) for local, Omniverse Kit App Streaming and GDN deployments.
+### Install Dependencies
 
-#### Local
+```bash
+npm install
+```
 
-Local streaming is used when connecting directly to a running Kit app. To use this option, set the source field to `"local"` in the [stream.config.json](stream.config.json#L3). You can also modify the [server](stream.config.json#L18), [signalingPort](stream.config.json#L19) and [mediaPort](stream.config.json#L20) values, but default values are already provided.
+### Run for Production
 
-#### Omniverse Kit App Streaming
+```bash
+npm run build
+npx vite preview --host --port 80
+```
 
-Omniverse Kit Application Streaming (OKAS) is an API that provides Kit app streaming on demand. Set the `source` field to `"stream"` in the [stream.config.json](stream.config.json#L3). You can also provide a default [app server](stream.config.json#L7) and [stream server](stream.config.json#L8), but these values aren't required as you can set them in the `Server Information` form when you run this sample.
+### Run Docker Container
 
-#### Graphics Delivery Network (GDN)
+```bash
+docker build -t streaming-client .
+docker run -p 80:80 streaming-client
+```
 
-GDN also provides Kit app streaming on demand like Omniverse Kit Application Streaming does but needs a different set of configurations. For this option, set the `source` field to `"gfn"` in the [stream.config.json](stream.config.json#L3). Values for [catalogClientId](stream.config.json#L12), [clientId](stream.config.json#L13) and [cmsId](stream.config.json#L14) are also required.
+The application will be accessible at [http://localhost](http://localhost).
 
-### Client UI
+## Stream Configuration
 
-When running this client, you will be presented with forms to configure options prior to the stream launching. These
-options will vary depending on the stream source defined in the [stream.config.json](stream.config.json) file.  
+Refer to the Omniverse WebRTC Streaming Library documentation at `./node_modules/@nvidia/ov-web-rtc/docs/index.html` for a detailed reference of the available streaming parameters.
 
-All stream sources will initially display a prompt for selecting the UI Option. Selecting `UI for default streaming USD Viewer app` will include a UI
-for sending messages to a running Kit application. This is necessary for the USD Viewer template, which in the default use
-case requires a client to send a request to open a file.
+Streaming parameters are defined in [src/main.tsx](./src/main.tsx).
 
-<p align="center">
-  <img src="readme-assets/include-web-ui.png"/>
-</p>
+The local (direct) streaming defaults are:
 
+```ts
+streamConfig = {
+  videoElementId: 'remote-video',
+  signalingServer: '127.0.0.1',
+  width: 1920,
+  height: 1080,
+  fps: 60,
+  onStart: (message: StreamEvent) => {
+    if (message.action === EventAction.START) {
+      if (message.status === EventStatus.SUCCESS) {
+        console.debug('Stream Ready');
+      } else if (message.status === EventStatus.ERROR) {
+        console.error('Stream start error:', message.info);
+        this.state.streamFailed = true;
+        this.updateUI();
+      }
+    }
+  },
+  onCustomEvent: (message: any) => console.log(message),
+  onStreamStats: (message: any) => console.log('Stream stats:', message),
+};
+```
 
-Here is an example of streaming with USD Viewer:
-
-<p align="center">
-  <img src="readme-assets/sample.png" width=100% />
-</p>
-
-Select `UI for any streaming app` for other use cases such as when
-streaming USD Viewer loading a file on startup or for completely different Kit applications.
-
-<p align="center">
-  <img src="readme-assets/include-web-ui-any.png"/>
-</p>
-
-Here is an example of streaming with USD Composer:
-
-<p align="center">
-  <img src="readme-assets/viewport-only.png" width=100% />
-</p>
-
-#### Omniverse Kit Application Streaming UI
-
-After selecting the UI Option, you will be presented with additional options for configuring your stream settings. The next prompt is the `Server Information` form, which asks for app server and stream server values. If these values were provided in the stream.config.json, they will automatically populate in this form.
-
-<p align="center">
-  <img src="readme-assets/server-information.png"/>
-</p>
-
-In the next form, select an application from the list of available applications in the dropdown.
-
-<p align="center">
-  <img src="readme-assets/select-application.png"/>
-</p>
-
-In the next form, select a version from the list of available application versions in the dropdown. The options are pulled from the OKAS API.
-
-<p align="center">
-  <img src="readme-assets/application-version.png"/>
-</p>
-
-In the last form, select a profile from the list of available application profiles in the dropdown.
-
-<p align="center">
-  <img src="readme-assets/application-profile.png"/>
-</p>
-
-After selecting "Next", the following sequence is performed to create a streaming session:
-
-1. Client [requests a Kit app streaming session](./src/App.tsx#L166).
-2. A session id is returned from the API. 
-3. Client [begins polling session status](./src/App.tsx#L176) until it's ready.
-4. [Returned connection parameters](./src/App.tsx#L188) are used by the [the App Streamer](./src/AppStream.tsx#L106) to connect to Kit.
-5. Later, when a user clicks the `End Stream` button and the [client requests to terminate the session](./src/App.tsx#L229), the API terminates the node.
-
-<p align="center">
-  <img src="readme-assets/end-stream.png" width=100% />
-</p>
-
-> [!NOTE]
-> The stream instance is automatically terminated if the max reconnect attempts [defined in the stream config](./src/AppStream.tsx#L121) are exceeded. If more time is needed,
-you should increase this value. This may be necessary on the first attempt, as Kit needs additional time for shader caching.
-
-
-### Interacting with the solution
+## Interacting with the solution
 
 The streamed RTX viewport within this client is interactable:
 
 - Left mouse button click on the viewport to activate its interactivity by giving it focus.
 - Left mouse button click to select something in the viewport.
-- ALT + left mouse button drag to orbit with the camera.
-- ALT + right mouse button drag to zoom.
 - Middle mouse button drag to pan the camera.
 - Hold right mouse button down for fly mode:
   - W: forward
@@ -226,198 +157,14 @@ The streamed RTX viewport within this client is interactable:
   - E: up
   - Use mouse scroll wheel to increase and decrease the camera speed
 
-The `USD Asset` selector tells the streamed application which OpenUSD asset to load.
-
-The `USD Stage` presents the contents of the OpenUSD asset.
-
-- Select an item here and it also selects in the viewport.
-- Select something in the viewport and this list shows what was selected.
-
-
-## Front End Client Development
-
-If this sample ticks all the boxes for what you want to develop then you are off to a good 
-start. Simply make it your own and continue developing in it. However, it's likely that you 
-have an existing client that you want to embed the viewer into. 
-In the section [Embed Viewer in an Existing Client](README.md#embed-viewer-in-an-existing-client) 
-we provide instructions for how to add the [omniverse-webrtc-streaming-library](https://docs.omniverse.nvidia.com/services/latest/services/web-streaming-library/overview.html) as a dependency. 
-This package provides functionality to allow managing Omniverse Kit applications streaming from GFN, on a local machine, or from some container instance with a provided URL. The remainder of the topics 
-here are presented in context of this sample so that it's easy to follow along and try things out. 
-Use this sample as a reference for implementing in your own client.
-
-### Embed Viewer in an Existing Client
-
-To embed the viewer in your existing client you'll need to add the 
-`omniverse-webrtc-streaming-library` as a dependency to your project:
-
- - Refer to [.npmrc](.npmrc).
- - Refer to [package.json](package.json) `dependencies` section.
-
-### AppStreamer
-
-The most important part of this sample is the [./src/AppStream.tsx](src/AppStream.tsx) file and its 
-use of the `AppStreamer` class imported from the `omniverse-webrtc-streaming-library`. 
-The `AppStreamer` is used for any implementation and `AppStream.tsx` is a reference implementation 
-for initializing the stream and providing bi-directional messaging between the front end client 
-and the Kit application.
-
-#### Keyboard Event Management
-
-The video HTML element presenting the streamed application reacts to keyboard and mouse
-events in order to support camera movement, selection, and other 3D viewport interactions.
-The `tabIndex` of the `<div>` wrapping the video element needs to have the tabIndex set to 
-`tabIndex={0}` as seen in [./src/AppStream.tsx](src/AppStream.tsx). One - yes one - other interactive elements 
-in the client also needs this tabIndex setting such as the selectable items in 
-[./src/USDStage.tsx](src/USDStage.tsx). These tabIndex setting allows each element to receive
-the right focus and interactivity. Without it you may find that only the viewport reacts to 
-keyboard events.
-
-### Initialize the Stream
-
-The `AppStreamer`'s `connect()` function initializes the streaming and messaging. Here you provide a 
-`streamConfig` object with configuration settings and a set of functions to handle messages.
-
-This sample provides configuration via the [stream.config.json](stream.config.json) file. There are three different
-source values that are supported: `local`, `gfn` and `stream`. The default `source` is set to `local` which is the setting to use unless you are embedding a 
-stream from [GDN](https://www.nvidia.com/en-us/omniverse/solutions/stream-3d-apps/).
-For GDN you need to contact your NVIDIA representative and get the appropriate configuration details.
-
-For `local` configuration in [stream.config.json](stream.config.json) you change the `server` 
-to the ip address where the Kit application is streamed from. With the ip address set you can see how 
-[AppStream.tsx](src/AppStream.tsx) constructs a `streamConfig` object providing a stream resolution and framerate (view code example [here](./src/AppStream.tsx#L61)).
-
-For `stream` configuration in [stream.config.json](stream.config.json), you can enter default `streamServer` and `appServer` values, but these
-values are also configurable prior to creating the streaming session via the front-end when the application is launched.
-
-It's important to note that the "stream resolution" is the size of the Kit application. It is not the resolution 
-in the Kit application viewport. By default, the USD Viewer template is set to change the viewport resolution to 
-fit the size of the viewport; meaning, the resolution is adjusted as the application window is resized. 
-If you want to add the ability to change the viewport resolution during an active session you could send a custom 
-message from the front end client to request the change.
-
-> [!NOTE]
-> The `gfn-client-sdk.js` script source in [index.html](index.html) can be removed when using `local` or `stream` sources. That library reference is only needed when streaming from GDN/GFN.
-
-### Custom Messages with AppStreamer
-
-There are two critical things to recognize when working with AppStreamer and custom messages:
-- `AppStreamer.sendMessage()` lets you send a custom message.
-- The stream config data that's passed to the `AppStreamer` (`RagnarokConfig` or `GFNConfig`) lets you register a handler for incoming messages via `onCustomEvent` (view code example [here](./src/AppStream.tsx#L100)).
-
-
-#### Message Format
-
-All custom messages exchanged between the front end client and the streamed Omniverse Kit application follow the same format:
-an object with properties `event_type` and `payload` that is JSON stringified prior to being sent off.
-
-```typescript
-{
-    event_type: "myEvent",
-    payload: {
-        property_name  : value
-    }
-}
-```
-
-On the receiving end, the Omniverse Kit application will need an Extension that handles `myEvent` and its `payload`. The Kit
-application sends similar messages for this client to handle. Below we explore how messages are used in this solution for
-opening a USD stage.
-
-#### Send a Custom Message
-
-Messages sent by `AppStreamer` are strings. To make a message usable by your custom Kit Extension based on 
-`omni.kit.livestream.messaging` usage you'll need to comply with the message format stated above.
-A practical and easy to read approach to do this is to first create an object:
-
-```typescript
-const message = {
-  event_type: 'changeResolutionRequest',
-    payload: {
-      width: 2048,
-      height: 1152
-  }
-}
-```
-
-Then use json to stringify the message object and ask AppStreamer to send it:
-
-```typescript
-AppStreamer.sendMessage(JSON.stringify(message));
-```
-
-This sample's [Window.tsx](src/Window.tsx) shows many examples of sending messages.
-
-#### Receive a Custom Message
-
-The function registered for custom events with `AppStreamer.connect()` should expect the same message object 
-structure used to send messages.
-
-```typescript
-private _myCustomMessageHandler (event: any): void {
-    if (!event) {
-        return;
-    }
-    if (event.event_type === 'changeResolutionConfirmation') {
-        console.log('Resolution was changed in Kit app: ' + event.payload.resolution);
-    }
-}
-```
-
-This sample's [Window.tsx](src/Window.tsx) has a `_handleCustomEvent` that shows many examples of handling messages.
-
-### Sample Message Loop
-
-The below function from [Window.tsx](src/Window.tsx) provides an example of sending a message to the streamed 
-Omniverse Kit application. The client sends a `openStageRequest` with a `url` property in the `payload`.
-
-```typescript
-_openSelectedAsset = () => {
-        ...
-        const message: AppStreamMessageType = {
-            event_type: "openStageRequest",
-            payload: {
-                url: this.state.selectedUSDAsset.url
-            }
-        };
-        AppStream.sendMessage(JSON.stringify(message));
-    }
-```
-
-The Kit application has a handler for `openStageRequest` that opens the USD asset with the provided `url`. Once that
-asset has loaded the Kit application sends a `openedStageResult` which is handled by the client as shown below.
-
-The `openedStageResult` handler to the request to open the asset can found in `src/Windows.tsx` as well:
-
-```typescript
-_handleCustomEvent = (event: any) => {
-    ...
-    // response received once a USD asset is fully loaded
-    else if (event.event_type === "openedStageResult") {
-        if (event.payload.result === "success") {
-            this._queryLoadingState() 
-            console.log('Kit App communicates an asset was loaded: ' + event.payload.url);
-            this._getChildren(null); // Hide progress indicator
-        } else {
-            console.error('Kit App communicates there was an error loading: ' + event.payload.url);
-        }
-    }
-    ...
-}
-```
-
-The `event_type` is used by both applications to triage how to handle a message. The `payload` is the data of the message.
-This `payload` can contain whatever data is desired.
-
-The above is a **custom capability of this example solution**. Developers should decide on what messages and payloads to
-implement for their solutions.
-
 ## Updating Dependencies
 
-The `omniverse-webrtc-streaming-library` is updated over time. To get the most recent version:
+The `ov-web-rtc` library is updated over time. To get the most recent version:
 
 1. Delete the `./node_modules` directory if it exists.
 2. Delete the [package-lock.json](./package-lock.json) file.
-3. Pull dependencies:
+3. Update the version of `@nvidia/ov-web-rtc` in [package.json](./package.json).
+4. Pull dependencies:
 
 ```bash
 npm install
@@ -432,17 +179,17 @@ Things don't always turn out as expected. If you are not getting the expected re
 - Check the browser console for errors.
 - Check the Kit application log for errors.
 - Test with an unmodified version of the project to see if any changes may have created some problem.
-- If you are streaming the Omniverse Kit application from another device, does the problem go 
+- If you are streaming the Omniverse Kit application from another device, does the problem go
 away if you stream it on the same device that this front end client is running on? If so you may have a
 network issue.
-- Check if your browser was updated to a more recent version. Sometimes browsers are set to be auto 
+- Check if your browser was updated to a more recent version. Sometimes browsers are set to be auto
 updated. Does it work if you use an older version?
 - Check the web browser log for errors.
 - Check the Omniverse Kit application. Did something go wrong at the other end?
 - Restart the solution:
-  - Shut down the dev server. 
-  - Shut down the Kit application. 
-  - Start the Kit application. 
+  - Shut down the dev server.
+  - Shut down the Kit application.
+  - Start the Kit application.
   - Start the dev server: `npm run dev`
 - If you are running `npm install` using Windows PowerShell and are encountering a `File C:\Program Files\nodejs\npm.ps1 cannot be loaded because running scripts is disabled on this system.` error:
   - Restart PowerShell as administrator
@@ -452,7 +199,7 @@ updated. Does it work if you use an older version?
 
 ### Refreshing the Client
 
-Kit app streaming is designed to start, run, and end; however, while developing the solution you may want to refresh the client 
+Kit app streaming is designed to start, run, and end; however, while developing the solution you may want to refresh the client
 in a browser and thus interrupt the normal flow.
 
 Restarting the client could cause errors on the Kit application side. If the stream does not immediately re-appear just wait a few seconds.
@@ -463,7 +210,3 @@ If it still does not appear try refreshing the browser one more time. If this do
 Development using the Omniverse Kit SDK is subject to the licensing terms detailed [here](https://docs.omniverse.nvidia.com/install-guide/latest/common/NVIDIA_Omniverse_License_Agreement.html).
 
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.
-
-## Contributing
-
-We provide this source code as-is and are currently not accepting outside contributions.

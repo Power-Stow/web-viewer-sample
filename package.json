@@ -1,49 +1,39 @@
 {
-    "name": "@nvidia/web-viewer-sample",
-    "version": "1.5.2",
-    "description": "Sample application to showcase streaming of Omniverse Kit applications to a web client application.",
-    "author": "Nvidia",
-    "license": "SEE LICENSE IN LICENSE",
-    "private": true,
-    "type": "module",
-    "engines": {
-        "node": "^20.0.0",
-        "npm": "^10.0.0"
-    },
-    "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-        "preview": "vite preview"
-    },
-    "eslintConfig": {
-        "extends": [
-            "react-app",
-            "react-app/jest"
-        ],
-        "globals": {
-            "GFN": "readonly"
-        }
-    },
-    "dependencies": {
-        "@nvidia/omniverse-webrtc-streaming-library": "5.18.2",
-        "bootstrap": "^5.3.3",
-        "prop-types": "^15.8.1",
-        "react": "^18.2.0",
-        "react-bootstrap": "^2.9.1",
-        "react-dom": "^18.2.0",
-        "vite-plugin-externals": "^0.6.2"
-    },
-    "devDependencies": {
-        "@types/react": "^18.2.43",
-        "@types/react-dom": "^18.2.17",
-        "@typescript-eslint/eslint-plugin": "^6.14.0",
-        "@typescript-eslint/parser": "^6.14.0",
-        "@vitejs/plugin-react": "^4.2.1",
-        "eslint": "^8.55.0",
-        "eslint-plugin-react-hooks": "^4.6.0",
-        "eslint-plugin-react-refresh": "^0.4.5",
-        "typescript": "^5.2.2",
-        "vite": "^5.0.8"
-    }
+  "name": "web-viewer",
+  "version": "0.0.1",
+  "description": "Simple viewport sample that streams a local Kit application.",
+  "author": "Nvidia",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:docs": "npx typedoc",
+    "format": "npx prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "test": "mocha --require ts-node/register 'src/tests/**/*.{ts,tsx}'"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@nvidia/ov-web-rtc": "6.x"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.0",
+    "@types/mocha": "^10.0.6",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "chai": "^5.2.0",
+    "mocha": "^10.2.0",
+    "prettier": "^3.5.3",
+    "prettier-plugin-brace-style": "^0.7.2",
+    "ts-node": "^10.9.2",
+    "typedoc": "^0.27.8",
+    "vite": "^6.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
 }
