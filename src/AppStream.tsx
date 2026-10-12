@@ -131,7 +131,9 @@ export default class AppStream extends Component<AppStreamProps, AppStreamState>
                 streamConfig = {
                     videoElementId: 'remote-video',
                     audioElementId: 'remote-audio',
-                    authenticate: true,
+                    // Kit's livestream server runs without bearer authentication (authenticateBearer = false), and the
+                    // streaming library (5.18+) refuses to start with authenticate enabled but no access token.
+                    authenticate: false,
                     maxReconnects: 20,
                     signalingServer: local_stream_server,
                     signalingPort: local_signaling_port,
